@@ -90,7 +90,7 @@ class MicroscopeController:
         pyautogui.click(self.live_pos[0], self.live_pos[1])
         time.sleep(self.live_delay)
     
-    def move_stage(self, direction):
+    def move_stage(self, direction, log_callback=None):
         """Move stage with arrow keys"""
         arrow_keys = {
             'right': 'right',
@@ -98,8 +98,12 @@ class MicroscopeController:
             'down': 'down',
             'up': 'up'
         }
+        if log_callback:
+            log_callback(f"    → Pressing {direction} arrow")
         pyautogui.press(arrow_keys[direction])
         time.sleep(self.arrow_delay)
+        if log_callback:
+            log_callback(f"    ✓ {direction.upper()} key pressed")
     
     def capture_sequence(self):
         """Execute full capture: wait -> OK -> Live Image"""
@@ -294,6 +298,180 @@ class CalibrationWindow:
 
 
 # ==============================================================================
+# ARROW CALIBRATION WINDOW
+# ==============================================================================
+
+class ArrowCalibrationWindow:
+    """Window for testing arrow key movements"""
+    
+    def __init__(self, parent_app):
+        self.parent = parent_app
+        self.window = tk.Toplevel(parent_app.root)
+        self.window.title("Arrow Key Calibration")
+        self.window.geometry("600x600")
+        self.window.grab_set()
+        
+        self.controller = MicroscopeController(parent_app.config.data)
+        self.setup_ui()
+    
+    def setup_ui(self):
+        """Build calibration interface"""
+        # Title
+        tk.Label(
+            self.window,
+            text="Arrow Key Calibration",
+            font=("Arial", 16, "bold")
+        ).pack(pady=20)
+        
+        # Instructions
+        instructions = [
+            "Test each arrow direction to ensure the microscope stage moves correctly.",
+            "Watch the microscope viewer to confirm movement.",
+            "Test all 4 directions before starting automation."
+        ]
+        
+        instr_frame = tk.Frame(self.window, bg="#ecf0f1", relief="ridge", bd=2)
+        instr_frame.pack(padx=20, pady=10, fill="x")
+        
+        for instruction in instructions:
+            tk.Label(
+                instr_frame,
+                text=f"• {instruction}",
+                font=("Arial", 10),
+                bg="#ecf0f1",
+                anchor="w",
+                justify="left"
+            ).pack(fill="x", padx=15, pady=3)
+        
+        # Arrow buttons in cross pattern
+        arrow_frame = tk.Frame(self.window)
+        arrow_frame.pack(pady=30)
+        
+        # UP
+        tk.Button(
+            arrow_frame,
+            text="▲ UP",
+            font=("Arial", 12, "bold"),
+            bg="#3498db",
+            fg="white",
+            width=10,
+            height=2,
+            command=lambda: self.test_arrow('up')
+        ).grid(row=0, column=1, padx=5, pady=5)
+        
+        # LEFT
+        tk.Button(
+            arrow_frame,
+            text="◄ LEFT",
+            font=("Arial", 12, "bold"),
+            bg="#3498db",
+            fg="white",
+            width=10,
+            height=2,
+            command=lambda: self.test_arrow('left')
+        ).grid(row=1, column=0, padx=5, pady=5)
+        
+        # RIGHT
+        tk.Button(
+            arrow_frame,
+            text="RIGHT ►",
+            font=("Arial", 12, "bold"),
+            bg="#3498db",
+            fg="white",
+            width=10,
+            height=2,
+            command=lambda: self.test_arrow('right')
+        ).grid(row=1, column=2, padx=5, pady=5)
+        
+        # DOWN
+        tk.Button(
+            arrow_frame,
+            text="▼ DOWN",
+            font=("Arial", 12, "bold"),
+            bg="#3498db",
+            fg="white",
+            width=10,
+            height=2,
+            command=lambda: self.test_arrow('down')
+        ).grid(row=2, column=1, padx=5, pady=5)
+        
+        # Multiple presses
+        multi_frame = tk.LabelFrame(self.window, text="Multiple Moves", padx=20, pady=15)
+        multi_frame.pack(padx=20, pady=10, fill="x")
+        
+        tk.Label(multi_frame, text="Number of presses:").pack(side="left", padx=5)
+        self.count_var = tk.StringVar(value="3")
+        tk.Entry(multi_frame, textvariable=self.count_var, width=5, font=("Arial", 12)).pack(side="left", padx=5)
+        
+        tk.Button(
+            multi_frame,
+            text="Test Pattern (Right → Down → Left → Up)",
+            font=("Arial", 10, "bold"),
+            bg="#e67e22",
+            fg="white",
+            padx=15,
+            pady=8,
+            command=self.test_pattern
+        ).pack(side="left", padx=10)
+        
+        # Log
+        log_frame = tk.LabelFrame(self.window, text="Test Log", padx=10, pady=10)
+        log_frame.pack(padx=20, pady=10, fill="both", expand=True)
+        
+        self.log_text = scrolledtext.ScrolledText(log_frame, height=10, font=("Courier", 9))
+        self.log_text.pack(fill="both", expand=True)
+        
+        # Close button
+        tk.Button(
+            self.window,
+            text="Done",
+            font=("Arial", 11, "bold"),
+            bg="#27ae60",
+            fg="white",
+            padx=30,
+            pady=10,
+            command=self.window.destroy
+        ).pack(pady=20)
+        
+        self.log("Ready to test arrow movements")
+    
+    def log(self, message):
+        """Add message to log"""
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.log_text.insert(tk.END, f"[{timestamp}] {message}\n")
+        self.log_text.see(tk.END)
+        self.window.update()
+    
+    def test_arrow(self, direction):
+        """Test a single arrow direction"""
+        self.log(f"Testing {direction.upper()} arrow...")
+        self.controller.move_stage(direction, log_callback=self.log)
+        self.log(f"Check if microscope moved {direction}")
+        self.log("")
+    
+    def test_pattern(self):
+        """Test all 4 directions in sequence"""
+        try:
+            count = int(self.count_var.get() or 1)
+            if count < 1:
+                count = 1
+        except:
+            self.log("Invalid count, using 1")
+            count = 1
+        
+        self.log(f"=== Testing pattern ({count} moves each) ===")
+        directions = ['right', 'down', 'left', 'up']
+        
+        for direction in directions:
+            for i in range(count):
+                self.log(f"{direction.upper()} move {i+1}/{count}")
+                self.controller.move_stage(direction, log_callback=self.log)
+        
+        self.log("=== Pattern complete ===")
+        self.log("")
+
+
+# ==============================================================================
 # MAIN APPLICATION
 # ==============================================================================
 
@@ -342,7 +520,9 @@ class MicroscopeApp:
             "1. Open Bz-x800 Viewer",
             "2. Position microscope at TOP-LEFT corner",
             "3. Set focus",
-            "4. Ensure save folder is configured"
+            "4. Ensure save folder is configured",
+            "",
+            "⌨️ ESC or Ctrl+C to stop automation"
         ]:
             tk.Label(instructions_frame, text=step, anchor="w").pack(fill="x", pady=2)
         
@@ -436,7 +616,7 @@ class MicroscopeApp:
         
         tk.Button(
             button_frame,
-            text="⚙ Calibrate",
+            text="⚙ Calibrate Buttons",
             font=("Arial", 10),
             bg="#95a5a6",
             fg="white",
@@ -444,6 +624,21 @@ class MicroscopeApp:
             pady=10,
             command=self.open_calibration
         ).pack(side="left", padx=10)
+        
+        tk.Button(
+            button_frame,
+            text="🎯 Test Arrows",
+            font=("Arial", 10),
+            bg="#9b59b6",
+            fg="white",
+            padx=20,
+            pady=10,
+            command=self.open_arrow_calibration
+        ).pack(side="left", padx=10)
+        
+        # Keyboard shortcuts
+        self.root.bind('<Escape>', lambda e: self.stop() if self.running else None)
+        self.root.bind('<Control-c>', lambda e: self.stop() if self.running else None)
     
     def update_total(self, *args):
         """Update total images label"""
@@ -473,6 +668,18 @@ class MicroscopeApp:
     def open_calibration(self):
         """Open calibration window"""
         CalibrationWindow(self)
+    
+    def open_arrow_calibration(self):
+        """Open arrow calibration window"""
+        if not self.config.is_calibrated():
+            messagebox.showwarning(
+                "Calibrate Buttons First",
+                "Please calibrate the OK and Live Image buttons first.\n\n"
+                "This ensures the controller is properly initialized."
+            )
+            self.open_calibration()
+            return
+        ArrowCalibrationWindow(self)
     
     def start(self):
         """Start automation"""
@@ -548,8 +755,8 @@ class MicroscopeApp:
                 # Move (skip first position)
                 if i > 0:
                     movement = navigator.get_movement(path[i-1], pos)
-                    self.log(f"  Moving {movement}")
-                    controller.move_stage(movement)
+                    self.log(f"  Moving {movement}...")
+                    controller.move_stage(movement, log_callback=self.log)
                 
                 # Capture
                 self.log(f"  Capturing...")
